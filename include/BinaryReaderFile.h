@@ -1,6 +1,5 @@
 #pragma once
 
-#include "BinaryReaderBuffered.h"
 #include "BinaryReaderExceptions.h"
 #include "BinaryReader.h"
 
@@ -26,56 +25,56 @@ class BinaryReaderFile : public BinaryReader
 
 private:
 	void
-	read1Byte(char* dst) override
+	read1Byte(uint8_t* dst) override
 	{
-		this->_reader.read(dst, 1);
+		this->_reader.read((char*)dst, 1);
 	}
 
 	void
-	read2Bytes(char* dst) override
+	read2Bytes(uint8_t* dst) override
 	{
-		this->_reader.read(dst, 2);
+		this->_reader.read((char*)dst, 2);
 	}
 
 	void
-	read2BytesBE(char* dst) override
+	read2BytesBE(uint8_t* dst) override
 	{
-		this->_reader.read(dst + 1, 1);
-		this->_reader.read(dst, 1);
+		this->_reader.read((char*)dst + 1, 1);
+		this->_reader.read((char*)dst, 1);
 	}
 
 	void
-	read4Bytes(char* dst) override
+	read4Bytes(uint8_t* dst) override
 	{
-		this->_reader.read(dst, 4);
+		this->_reader.read((char*)dst, 4);
 	}
 
 	void
-	read4BytesBE(char* dst) override
+	read4BytesBE(uint8_t* dst) override
 	{
-		this->_reader.read(dst + 3, 1);
-		this->_reader.read(dst + 2, 1);
-		this->_reader.read(dst + 1, 1);
-		this->_reader.read(dst, 1);
+		this->_reader.read((char*)dst + 3, 1);
+		this->_reader.read((char*)dst + 2, 1);
+		this->_reader.read((char*)dst + 1, 1);
+		this->_reader.read((char*)dst, 1);
 	}
 
 	void
-	read8Bytes(char* dst) override
+	read8Bytes(uint8_t* dst) override
 	{
-		this->_reader.read(dst, 8);
+		this->_reader.read((char*)dst, 8);
 	}
 
 	void
-	read8BytesBE(char* dst) override
+	read8BytesBE(uint8_t* dst) override
 	{
-		this->_reader.read(dst + 7, 1);
-		this->_reader.read(dst + 6, 1);
-		this->_reader.read(dst + 5, 1);
-		this->_reader.read(dst + 4, 1);
-		this->_reader.read(dst + 3, 1);
-		this->_reader.read(dst + 2, 1);
-		this->_reader.read(dst + 1, 1);
-		this->_reader.read(dst, 1);
+		this->_reader.read((char*)dst + 7, 1);
+		this->_reader.read((char*)dst + 6, 1);
+		this->_reader.read((char*)dst + 5, 1);
+		this->_reader.read((char*)dst + 4, 1);
+		this->_reader.read((char*)dst + 3, 1);
+		this->_reader.read((char*)dst + 2, 1);
+		this->_reader.read((char*)dst + 1, 1);
+		this->_reader.read((char*)dst, 1);
 	}
 
 public:

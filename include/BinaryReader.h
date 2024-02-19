@@ -18,27 +18,27 @@
 class BinaryReader
 {
 private:
-	virtual void read1Byte(char* dst) = 0;
-	virtual void read2Bytes(char* dst) = 0;
-	virtual void read2BytesBE(char* dst) = 0;
-	virtual void read4Bytes(char* dst) = 0;
-	virtual void read4BytesBE(char* dst) = 0;
-	virtual void read8Bytes(char* dst) = 0;
-	virtual void read8BytesBE(char* dst) = 0;
+	virtual void read1Byte(uint8_t* dst);
+	virtual void read2Bytes(uint8_t* dst);
+	virtual void read2BytesBE(uint8_t* dst);
+	virtual void read4Bytes(uint8_t* dst);
+	virtual void read4BytesBE(uint8_t* dst);
+	virtual void read8Bytes(uint8_t* dst);
+	virtual void read8BytesBE(uint8_t* dst);
 
 public:
 	BinaryReader() = default;
 	virtual ~BinaryReader() = default;
 
-	virtual size_t getLength() = 0;
-	virtual BinaryReader& seek(std::streamoff offset, std::ios_base::seekdir way) = 0;
-	virtual size_t tell() = 0;
+	virtual size_t getLength();
+	virtual BinaryReader& seek(std::streamoff offset, std::ios_base::seekdir way);
+	virtual size_t tell();
 
 	uint8_t
 	readUInt8()
 	{
 		uint8_t data;
-		read1Byte(reinterpret_cast<char*>(&data));
+		read1Byte(reinterpret_cast<uint8_t*>(&data));
 		return data;
 	}
 
@@ -46,7 +46,7 @@ public:
 	readUInt8(uint8_t min, uint8_t max, const std::string& debugMsg)
 	{
 		uint8_t data;
-		read1Byte(reinterpret_cast<char*>(&data));
+		read1Byte(reinterpret_cast<uint8_t*>(&data));
 
 		if (data < min)
 			throw LimitException((uint64_t)data, min, debugMsg);
@@ -59,7 +59,7 @@ public:
 	readInt8()
 	{
 		uint8_t data;
-		read1Byte(reinterpret_cast<char*>(&data));
+		read1Byte(reinterpret_cast<uint8_t*>(&data));
 		return data;
 	}
 
@@ -67,7 +67,7 @@ public:
 	readInt8(int8_t min, int8_t max, const std::string& debugMsg)
 	{
 		uint8_t data;
-		read1Byte(reinterpret_cast<char*>(&data));
+		read1Byte(reinterpret_cast<uint8_t*>(&data));
 
 		if (data < min)
 			throw LimitException((int64_t)data, max, debugMsg);
@@ -80,7 +80,7 @@ public:
 	readUInt16()
 	{
 		uint16_t data;
-		read2Bytes(reinterpret_cast<char*>(&data));
+		read2Bytes(reinterpret_cast<uint8_t*>(&data));
 		return data;
 	}
 
@@ -88,7 +88,7 @@ public:
 	readUInt16(uint16_t min, uint16_t max, const std::string& debugMsg)
 	{
 		uint16_t data;
-		read2Bytes(reinterpret_cast<char*>(&data));
+		read2Bytes(reinterpret_cast<uint8_t*>(&data));
 
 		if (data < min)
 			throw LimitException((uint64_t)data, min, debugMsg);
@@ -101,7 +101,7 @@ public:
 	readInt16()
 	{
 		int16_t data;
-		read2Bytes(reinterpret_cast<char*>(&data));
+		read2Bytes(reinterpret_cast<uint8_t*>(&data));
 		return data;
 	}
 
@@ -109,7 +109,7 @@ public:
 	readInt16(int16_t min, int16_t max, const std::string& debugMsg)
 	{
 		int16_t data;
-		read2Bytes(reinterpret_cast<char*>(&data));
+		read2Bytes(reinterpret_cast<uint8_t*>(&data));
 
 		if (data < min)
 			throw LimitException((int64_t)data, max, debugMsg);
@@ -122,7 +122,7 @@ public:
 	readUInt16BE()
 	{
 		uint16_t data;
-		read2BytesBE(reinterpret_cast<char*>(&data));
+		read2BytesBE(reinterpret_cast<uint8_t*>(&data));
 		return data;
 	}
 
@@ -130,7 +130,7 @@ public:
 	readUInt16BE(uint16_t min, uint16_t max, const std::string& debugMsg)
 	{
 		uint16_t data;
-		read2BytesBE(reinterpret_cast<char*>(&data));
+		read2BytesBE(reinterpret_cast<uint8_t*>(&data));
 
 		if (data < min)
 			throw LimitException((uint64_t)data, min, debugMsg);
@@ -143,7 +143,7 @@ public:
 	readInt16BE()
 	{
 		int16_t data;
-		read2BytesBE(reinterpret_cast<char*>(&data));
+		read2BytesBE(reinterpret_cast<uint8_t*>(&data));
 		return data;
 	}
 
@@ -151,7 +151,7 @@ public:
 	readInt16BE(int16_t min, int16_t max, const std::string& debugMsg)
 	{
 		int16_t data;
-		read2BytesBE(reinterpret_cast<char*>(&data));
+		read2BytesBE(reinterpret_cast<uint8_t*>(&data));
 
 		if (data < min)
 			throw LimitException((int64_t)data, max, debugMsg);
@@ -164,7 +164,7 @@ public:
 	readUInt32()
 	{
 		uint32_t data;
-		read4Bytes(reinterpret_cast<char*>(&data));
+		read4Bytes(reinterpret_cast<uint8_t*>(&data));
 		return data;
 	}
 
@@ -172,7 +172,7 @@ public:
 	readUInt32(uint32_t min, uint32_t max, const std::string& debugMsg)
 	{
 		uint32_t data;
-		read4Bytes(reinterpret_cast<char*>(&data));
+		read4Bytes(reinterpret_cast<uint8_t*>(&data));
 
 		if (data < min)
 			throw LimitException((uint64_t)data, min, debugMsg);
@@ -185,7 +185,7 @@ public:
 	readInt32()
 	{
 		int32_t data;
-		read4Bytes(reinterpret_cast<char*>(&data));
+		read4Bytes(reinterpret_cast<uint8_t*>(&data));
 		return data;
 	}
 
@@ -193,7 +193,7 @@ public:
 	readInt32(int32_t min, int32_t max, const std::string& debugMsg)
 	{
 		int32_t data;
-		read4Bytes(reinterpret_cast<char*>(&data));
+		read4Bytes(reinterpret_cast<uint8_t*>(&data));
 
 		if (data < min)
 			throw LimitException((int64_t)data, max, debugMsg);
@@ -206,7 +206,7 @@ public:
 	readUInt32BE()
 	{
 		uint32_t data;
-		read4BytesBE(reinterpret_cast<char*>(&data));
+		read4BytesBE(reinterpret_cast<uint8_t*>(&data));
 		return data;
 	}
 
@@ -214,7 +214,7 @@ public:
 	readUInt32BE(uint32_t min, uint32_t max, const std::string& debugMsg)
 	{
 		uint32_t data;
-		read4BytesBE(reinterpret_cast<char*>(&data));
+		read4BytesBE(reinterpret_cast<uint8_t*>(&data));
 
 		if (data < min)
 			throw LimitException((uint64_t)data, min, debugMsg);
@@ -227,7 +227,7 @@ public:
 	readInt32BE()
 	{
 		int32_t data;
-		read4BytesBE(reinterpret_cast<char*>(&data));
+		read4BytesBE(reinterpret_cast<uint8_t*>(&data));
 		return data;
 	}
 
@@ -235,7 +235,7 @@ public:
 	readInt32BE(int32_t min, int32_t max, const std::string& debugMsg)
 	{
 		int32_t data;
-		read4BytesBE(reinterpret_cast<char*>(&data));
+		read4BytesBE(reinterpret_cast<uint8_t*>(&data));
 
 		if (data < min)
 			throw LimitException((int64_t)data, max, debugMsg);
@@ -248,7 +248,7 @@ public:
 	readUInt64()
 	{
 		uint64_t data;
-		read8Bytes(reinterpret_cast<char*>(&data));
+		read8Bytes(reinterpret_cast<uint8_t*>(&data));
 		return data;
 	}
 
@@ -256,7 +256,7 @@ public:
 	readUInt64(uint64_t min, uint64_t max, const std::string& debugMsg)
 	{
 		uint64_t data;
-		read8Bytes(reinterpret_cast<char*>(&data));
+		read8Bytes(reinterpret_cast<uint8_t*>(&data));
 
 		if (data < min)
 			throw LimitException(data, min, debugMsg);
@@ -269,7 +269,7 @@ public:
 	readInt64()
 	{
 		int64_t data;
-		read8Bytes(reinterpret_cast<char*>(&data));
+		read8Bytes(reinterpret_cast<uint8_t*>(&data));
 		return data;
 	}
 
@@ -277,7 +277,7 @@ public:
 	readInt64(int64_t min, int64_t max, const std::string& debugMsg)
 	{
 		int64_t data;
-		read8Bytes(reinterpret_cast<char*>(&data));
+		read8Bytes(reinterpret_cast<uint8_t*>(&data));
 
 		if (data < min)
 			throw LimitException(data, min, debugMsg);
@@ -290,7 +290,7 @@ public:
 	readUInt64BE()
 	{
 		uint64_t data;
-		read8BytesBE(reinterpret_cast<char*>(&data));
+		read8BytesBE(reinterpret_cast<uint8_t*>(&data));
 		return data;
 	}
 
@@ -298,7 +298,7 @@ public:
 	readUInt64BE(uint64_t min, uint64_t max, const std::string& debugMsg)
 	{
 		uint64_t data;
-		read8BytesBE(reinterpret_cast<char*>(&data));
+		read8BytesBE(reinterpret_cast<uint8_t*>(&data));
 
 		if (data < min)
 			throw LimitException(data, min, debugMsg);
@@ -311,7 +311,7 @@ public:
 	readInt64BE()
 	{
 		int64_t data;
-		read8BytesBE(reinterpret_cast<char*>(&data));
+		read8BytesBE(reinterpret_cast<uint8_t*>(&data));
 		return data;
 	}
 
@@ -319,7 +319,7 @@ public:
 	readInt64BE(int64_t min, int64_t max, const std::string& debugMsg)
 	{
 		int64_t data;
-		read8BytesBE(reinterpret_cast<char*>(&data));
+		read8BytesBE(reinterpret_cast<uint8_t*>(&data));
 
 		if (data < min)
 			throw LimitException(data, min, debugMsg);
@@ -435,7 +435,7 @@ public:
 	readFloat()
 	{
 		float data;
-		read4Bytes(reinterpret_cast<char*>(&data));
+		read4Bytes(reinterpret_cast<uint8_t*>(&data));
 		return data;
 	}
 
@@ -443,7 +443,7 @@ public:
 	readFloat(float min, float max, uint8_t flags, const std::string& debugMsg)
 	{
 		float data;
-		read4Bytes(reinterpret_cast<char*>(&data));
+		read4Bytes(reinterpret_cast<uint8_t*>(&data));
 
 		int32_t castData = 0;
 		switch(std::fpclassify(data))
@@ -508,7 +508,7 @@ public:
 	readDouble()
 	{
 		double data;
-		read8Bytes(reinterpret_cast<char*>(&data));
+		read8Bytes(reinterpret_cast<uint8_t*>(&data));
 		return data;
 	}
 
@@ -516,7 +516,7 @@ public:
 	readDouble(double min, double max, uint8_t flags, const std::string& debugMsg)
 	{
 		double data;
-		read8Bytes(reinterpret_cast<char*>(&data));
+		read8Bytes(reinterpret_cast<uint8_t*>(&data));
 		
 		int64_t castData = 0;
 		switch(std::fpclassify(data))
