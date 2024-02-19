@@ -25,25 +25,103 @@ class BinaryReaderFile : public BinaryReader
 	size_t m_length;
 
 private:
-	void read1Byte(char* dst) override;
-	void read2Bytes(char* dst) override;
-	void read2BytesBE(char* dst) override;
-	void read4Bytes(char* dst) override;
-	void read4BytesBE(char* dst) override;
-	void read8Bytes(char* dst) override;
-	void read8BytesBE(char* dst) override;
+	void
+	read1Byte(char* dst) override
+	{
+		this->_reader.read(dst, 1);
+	}
+
+	void
+	read2Bytes(char* dst) override
+	{
+		this->_reader.read(dst, 2);
+	}
+
+	void
+	read2BytesBE(char* dst) override
+	{
+		this->_reader.read(dst + 1, 1);
+		this->_reader.read(dst, 1);
+	}
+
+	void
+	read4Bytes(char* dst) override
+	{
+		this->_reader.read(dst, 4);
+	}
+
+	void
+	read4BytesBE(char* dst) override
+	{
+		this->_reader.read(dst + 3, 1);
+		this->_reader.read(dst + 2, 1);
+		this->_reader.read(dst + 1, 1);
+		this->_reader.read(dst, 1);
+	}
+
+	void
+	read8Bytes(char* dst) override
+	{
+		this->_reader.read(dst, 8);
+	}
+
+	void
+	read8BytesBE(char* dst) override
+	{
+		this->_reader.read(dst + 7, 1);
+		this->_reader.read(dst + 6, 1);
+		this->_reader.read(dst + 5, 1);
+		this->_reader.read(dst + 4, 1);
+		this->_reader.read(dst + 3, 1);
+		this->_reader.read(dst + 2, 1);
+		this->_reader.read(dst + 1, 1);
+		this->_reader.read(dst, 1);
+	}
 
 public:
-	BinaryReaderFile();
-	BinaryReaderFile(const std::string& filePath);
+	BinaryReaderFile()
+	{
+		this->m_length = 0;
+		this->seek(0, std::ios_base::beg);
+	}
+
+	BinaryReaderFile(const std::string& filePath)
+	{
+		this->_reader = std::ifstream(filePath, std::ifstream::in | std::ifstream::binary);
+
+		if (this->_reader.fail())
+			throw std::runtime_error("File does not exist");
+		
+		this->setLength();
+		this->seek(0, std::ios_base::beg);
+	}
+	
 	#ifdef USING_FILESYSTEM
 	BinaryReaderFile(const fs::path& filePath) : BinaryReaderFile(filePath.string()) {}
 	#endif
 
-	size_t getLength() override;
-	BinaryReaderFile& seek(std::streamoff offset, std::ios_base::seekdir way) override;
-	size_t tell() override;
+	size_t
+	getLength() override
+	{
+		return this->m_length;
+	}
+
+	BinaryReaderFile& seek(std::streamoff offset, std::ios_base::seekdir way) override
+	{
+		_reader.seekg(offset, way);
+		return *this;
+	}
+
+	size_t tell() override
+	{
+		return (size_t)this->_reader.tellg();
+	}
 
 private:
-	void setLength();
+	void
+	setLength()
+	{
+		this->seek(0, std::ios_base::end);
+		this->m_length = this->tell();
+	}
 };
