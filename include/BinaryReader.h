@@ -329,6 +329,39 @@ namespace BinaryReader
 			return data;
 		}
 
+		// https://github.com/yretenai/Lotus/blob/500c5d615563467a87bd002df70b789e944c3240/Lotus.Struct/CursoredMemoryMarshal.cs#L125C31-L125C38
+		uint64_t
+		readULEB(int maxBits = 64)
+		{
+			uint64_t result = 0;
+			
+			uint8_t curByte;
+			for (int curShift = 0; curShift < maxBits - 1; curShift += 7)
+			{
+				curByte = readUInt8();
+				result |= (curByte & 0x7Ful) << curShift;
+
+				if (curByte <= 0x7ful)
+					return result;
+			}
+
+			curByte = readUInt8();
+			result |= (uint64_t)curByte << (maxBits - 1);
+			return result;
+		}
+
+		uint64_t
+		readULEB(uint64_t min, uint64_t max, const std::string& debugMsg, int maxBits = 64)
+		{
+			uint64_t data = readULEB(maxBits);
+
+			if (data < min)
+				throw LimitException(data, min, debugMsg);
+			else if (data > max)
+				throw LimitException(data, max, debugMsg);
+			return data;
+		}
+
 		// I saved this from somewhere online
 		// If I remembered where, I would give credit
 		float
