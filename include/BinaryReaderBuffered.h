@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BinaryReader.h"
+#include "BinaryReaderSlice.h"
 #include "BinaryReaderExceptions.h"
 
 #include <fstream>
@@ -12,84 +13,74 @@ namespace BinaryReader
 {
 	class BinaryReaderBuffered : public BinaryReader
 	{
-		// To hold data in case of std::vector constructor
-		std::vector<uint8_t> m_dataVec;
-		size_t m_size;
-		uint8_t* m_dataPtr;
+		std::vector<uint8_t> m_data;
 		size_t m_curPos;
 
 		void
 		read1Byte(uint8_t* dst) override
 		{
 			m_curPos += 1;
-			std::memcpy(dst, &m_dataPtr[m_curPos - 1], 1);
+			std::memcpy(dst, &m_data[m_curPos - 1], 1);
 		}
 
 		void
 		read2Bytes(uint8_t* dst) override
 		{
 			m_curPos += 2;
-			std::memcpy(dst, &m_dataPtr[m_curPos - 2], 2);
+			std::memcpy(dst, &m_data[m_curPos - 2], 2);
 		}
 
 		void
 		read2BytesBE(uint8_t* dst) override
 		{
-			std::memcpy(dst + 1, &m_dataPtr[m_curPos++], 1);
-			std::memcpy(dst, &m_dataPtr[m_curPos++], 1);
+			std::memcpy(dst + 1, &m_data[m_curPos++], 1);
+			std::memcpy(dst, &m_data[m_curPos++], 1);
 		}
 
 		void
 		read4Bytes(uint8_t* dst) override
 		{
 			m_curPos += 4;
-			std::memcpy(dst, &m_dataPtr[m_curPos - 4], 4);
+			std::memcpy(dst, &m_data[m_curPos - 4], 4);
 		}
 
 		void
 		read4BytesBE(uint8_t* dst) override
 		{
-			std::memcpy(dst + 3, &m_dataPtr[m_curPos++], 1);
-			std::memcpy(dst + 2, &m_dataPtr[m_curPos++], 1);
-			std::memcpy(dst + 1, &m_dataPtr[m_curPos++], 1);
-			std::memcpy(dst, &m_dataPtr[m_curPos++], 1);
+			std::memcpy(dst + 3, &m_data[m_curPos++], 1);
+			std::memcpy(dst + 2, &m_data[m_curPos++], 1);
+			std::memcpy(dst + 1, &m_data[m_curPos++], 1);
+			std::memcpy(dst, &m_data[m_curPos++], 1);
 		}
 
 		void
 		read8Bytes(uint8_t* dst) override
 		{
 			m_curPos += 8;
-			std::memcpy(dst, &m_dataPtr[m_curPos - 8], 8);
+			std::memcpy(dst, &m_data[m_curPos - 8], 8);
 		}
 
 		void
 		read8BytesBE(uint8_t* dst) override
 		{
-			std::memcpy(dst + 7, &m_dataPtr[m_curPos++], 1);
-			std::memcpy(dst + 6, &m_dataPtr[m_curPos++], 1);
-			std::memcpy(dst + 5, &m_dataPtr[m_curPos++], 1);
-			std::memcpy(dst + 4, &m_dataPtr[m_curPos++], 1);
-			std::memcpy(dst + 3, &m_dataPtr[m_curPos++], 1);
-			std::memcpy(dst + 2, &m_dataPtr[m_curPos++], 1);
-			std::memcpy(dst + 1, &m_dataPtr[m_curPos++], 1);
-			std::memcpy(dst, &m_dataPtr[m_curPos++], 1);
+			std::memcpy(dst + 7, &m_data[m_curPos++], 1);
+			std::memcpy(dst + 6, &m_data[m_curPos++], 1);
+			std::memcpy(dst + 5, &m_data[m_curPos++], 1);
+			std::memcpy(dst + 4, &m_data[m_curPos++], 1);
+			std::memcpy(dst + 3, &m_data[m_curPos++], 1);
+			std::memcpy(dst + 2, &m_data[m_curPos++], 1);
+			std::memcpy(dst + 1, &m_data[m_curPos++], 1);
+			std::memcpy(dst, &m_data[m_curPos++], 1);
 		}
 
 	public:
 		BinaryReaderBuffered()
-			: m_dataVec(), m_curPos(0)
+			: m_data(), m_curPos(0)
 		{
 		}
 
 		BinaryReaderBuffered(std::vector<uint8_t>&& data)
-			: m_dataVec(data), m_curPos(0)
-		{
-			m_dataPtr = m_dataVec.data();
-			m_size = data.size();
-		}
-
-		BinaryReaderBuffered(uint8_t* data, size_t size)
-			: m_size(size), m_dataPtr(data), m_curPos(0)
+			: m_data(data), m_curPos(0)
 		{
 		}
 		
@@ -101,13 +92,13 @@ namespace BinaryReader
 		size_t
 		getLength() override
 		{
-			return m_size;
+			return m_data.size();
 		}
 
-		const uint8_t*
+		const std::vector<uint8_t>&
 		getPtr()
 		{
-			return m_dataPtr;
+			return m_data;
 		}
 
 		BinaryReaderBuffered&
@@ -122,7 +113,7 @@ namespace BinaryReader
 				m_curPos += offset;
 				break;
 			case std::ios_base::end:
-				m_curPos = m_size + offset;
+				m_curPos = m_data.size() + offset;
 				break;
 			}
 			return *this;
@@ -134,13 +125,12 @@ namespace BinaryReader
 			return m_curPos;
 		}
 
-		BinaryReaderBuffered
+		BinaryReaderSlice
 		slice(size_t size)
 		{
-			BinaryReaderBuffered ret(m_dataPtr + tell(), m_size - tell());
+			BinaryReaderSlice ret(m_data.data() + tell(), size);
 			seek(size, std::ios::cur);
 			return ret;
 		}
-
 	};
 };
