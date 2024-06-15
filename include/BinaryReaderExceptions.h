@@ -5,25 +5,27 @@
 #include <sstream>
 #include <cstdint>
 #include <string>
+#include <concepts>
 
-class LimitException : public std::runtime_error {
+class LimitException : public std::runtime_error
+{
 public:
-    LimitException(uint64_t value, uint64_t limit, const std::string& msg)
-        : runtime_error("Limit (" + std::to_string(limit) + ") hit: " + std::to_string(value) + " \"" + msg + "\"")
+    const size_t index;
+
+    LimitException(const auto& value, const auto& limit, const std::string& msg)
+        : runtime_error("Limit hit. \"" + msg + "\""), index(0)
     {}
 
-    LimitException(int64_t value, int64_t limit, const std::string& msg)
-        : runtime_error("Limit (" + std::to_string(limit) + ") hit: " + std::to_string(value) + " \"" + msg + "\"")
-    {}
-
-    LimitException(double value, double limit, const std::string& msg)
-        : runtime_error("Limit (" + std::to_string(limit) + ") hit: " + std::to_string(value) + " \"" + msg + "\"")
+    LimitException(const auto& value, const auto& limit, size_t index, const std::string& msg)
+        : runtime_error("Limit hit at index " + std::to_string(index) + ". \"" + msg + "\""), index(index)
     {}
 };
 
-class NonNormalFloatException : public std::runtime_error {
+class NonNormalFloatException : public std::runtime_error
+{
 public:
-    NonNormalFloatException(double value, const std::string& msg)
+    template <typename T>
+    NonNormalFloatException(const T& value, const std::string& msg)
         : runtime_error("Non-Normal float read: (" + std::to_string(value) + ") \"" + msg + "\"")
     {}
 };

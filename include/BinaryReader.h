@@ -2,372 +2,687 @@
 
 #include "BinaryReaderExceptions.h"
 
-#include <fstream>
 #include <cstdint>
+#include <stdexcept>
 #include <string>
 #include <cstring>
-#include <memory>
 #include <cmath>
-#include <climits>
-#include <vector>
-
-#define CONV_INF 1
-#define CONV_ZERO 2
-#define FAIL_SUBNORM 4
+#include <concepts>
 
 namespace BinaryReader
 {
+	// Converts floating point infinity to floating point max
+	#define CONV_INF 1
+	// Converts -0 to 0
+	#define CONV_ZERO 2
+	// Throws NonNormalFloatException if float is sub-normal
+	#define FAIL_SUBNORM 4
+
+	// Used for bit-wise operations (limited to 64 bits)
+	const static uint64_t POW2[64] = {	0ULL,					2ULL,					4ULL,
+										8ULL,					16ULL,					32ULL,
+										64ULL,					128ULL,					256ULL,
+										512ULL, 				1024ULL,				2048ULL,
+										4096ULL,				8192ULL,				16384ULL,
+										32768ULL,				65536ULL,				131072ULL,
+										262144ULL,				524288ULL,				1048576ULL,
+										2097152ULL,				4194304ULL,				8388608ULL,
+										16777216ULL,			33554432ULL,			67108864ULL,
+										134217728ULL,			268435456ULL,			536870912ULL,
+										1073741824ULL,			2147483648ULL,			4294967296ULL,
+										8589934592ULL,			17179869184ULL,			34359738368ULL,
+										68719476736ULL,			137438953472ULL,		274877906944ULL,
+										549755813888ULL, 		1099511627776ULL,		2199023255552ULL,
+										4398046511104ULL, 		8796093022208ULL,		17592186044416ULL,
+										35184372088832ULL,		70368744177664ULL,		140737488355328ULL,
+										281474976710656ULL, 	562949953421312ULL,		1125899906842624ULL,
+										2251799813685248ULL, 	4503599627370496ULL,	9007199254740992ULL,
+										18014398509481984ULL,	36028797018963968ULL,	72057594037927936ULL,
+										144115188075855872ULL,	288230376151711744ULL,	576460752303423488ULL,
+										1152921504606846976ULL,	2305843009213693952ULL,	4611686018427387904ULL,
+										9223372036854775808ULL};
+
+	template <class T>
+	concept isSimpleComparable = requires(T a, T b)
+	{
+		a < b;
+		a > b;
+	};
+
 	class BinaryReader
 	{
-	private:
-		virtual void read1Byte(uint8_t* dst) = 0;
-		virtual void read2Bytes(uint8_t* dst) = 0;
-		virtual void read2BytesBE(uint8_t* dst) = 0;
-		virtual void read4Bytes(uint8_t* dst) = 0;
-		virtual void read4BytesBE(uint8_t* dst) = 0;
-		virtual void read8Bytes(uint8_t* dst) = 0;
-		virtual void read8BytesBE(uint8_t* dst) = 0;
+		int m_bitOffset;
+
+	protected:
+		// Only requirements for child classes
+		virtual void readBytes(void* dst, int count) = 0;
+		virtual void readBytesBE(void* dst, int count) = 0;
 
 	public:
-		BinaryReader() = default;
+		BinaryReader() : m_bitOffset(0) {};
 
+		virtual BinaryReader& seek(std::streamoff offset, std::ios_base::seekdir way = std::ios::cur) = 0;
 		virtual size_t getLength() = 0;
-		virtual BinaryReader& seek(std::streamoff offset, std::ios_base::seekdir way) = 0;
 		virtual size_t tell() = 0;
 
-		uint8_t
-		readUInt8()
+		//////////////////////////////////////////////////////////////////////////////
+		// Basic read. Use this for structs
+
+		template <typename T>
+		T
+		read()
 		{
-			uint8_t data;
-			read1Byte(reinterpret_cast<uint8_t*>(&data));
+			T data;
+			readBytes(&data, sizeof(T));
 			return data;
 		}
 
-		uint8_t
-		readUInt8(uint8_t min, uint8_t max, const std::string& debugMsg)
+		//////////////////////////////////////////////////////////////////////////////
+		// Scalars
+
+		template <typename T>
+		requires std::integral<T> || std::floating_point<T>
+		T
+		readScalar()
 		{
-			uint8_t data;
-			read1Byte(reinterpret_cast<uint8_t*>(&data));
+			T data;
+			readBytes(&data, sizeof(T));
+			return data;
+		}
+
+		template <typename T>
+		requires std::integral<T> && isSimpleComparable<T>
+		T
+		readScalarSafe(T min, T max, const std::string& debugMsg)
+		{
+			T data;
+			readBytes(&data, sizeof(T));
 
 			if (data < min)
-				throw LimitException((uint64_t)data, min, debugMsg);
-			else if (data > max)
-				throw LimitException((uint64_t)data, max, debugMsg);
+				throw LimitException(data, min, debugMsg);
+			else if (data >= max)
+				throw LimitException(data, max, debugMsg);
+
 			return data;
 		}
 
-		int8_t
-		readInt8()
+		template <typename T>
+		requires std::integral<T> && isSimpleComparable<T>
+		T
+		readScalarSafe(T exact, const std::string& debugMsg)
 		{
-			uint8_t data;
-			read1Byte(reinterpret_cast<uint8_t*>(&data));
+			T data;
+			readBytes(&data, sizeof(T));
+
+			if (data != exact)
+				throw LimitException(data, exact, debugMsg);
+
 			return data;
 		}
 
-		int8_t
-		readInt8(int8_t min, int8_t max, const std::string& debugMsg)
+		template <typename T>
+		requires std::integral<T> || std::floating_point<T>
+		T
+		readScalarBE()
 		{
-			uint8_t data;
-			read1Byte(reinterpret_cast<uint8_t*>(&data));
+			T data;
+			readBytesBE(&data, sizeof(T));
+			return data;
+		}
+
+		template <typename T>
+		requires std::integral<T> && isSimpleComparable<T>
+		T
+		readScalarBESafe(T min, T max, const std::string& debugMsg)
+		{
+			T data;
+			readBytesBE(&data, sizeof(T));
 
 			if (data < min)
-				throw LimitException((int64_t)data, max, debugMsg);
-			else if (data > max)
-				throw LimitException((int64_t)data, max, debugMsg);
+				throw LimitException(data, min, debugMsg);
+			else if (data >= max)
+				throw LimitException(data, max, debugMsg);
+
 			return data;
 		}
 
-		uint16_t
-		readUInt16()
+		template <typename T>
+		requires std::integral<T> && isSimpleComparable<T>
+		T
+		readScalarBESafe(T exact, const std::string& debugMsg)
 		{
-			uint16_t data;
-			read2Bytes(reinterpret_cast<uint8_t*>(&data));
+			T data;
+			readBytesBE(&data, sizeof(T));
+
+			if (data != exact)
+				throw LimitException(data, exact, debugMsg);
+
 			return data;
 		}
 
-		uint16_t
-		readUInt16(uint16_t min, uint16_t max, const std::string& debugMsg)
+		//////////////////////////////////////////////////////////////////////////////
+		// Scalar Arrays
+
+		template <typename T>
+		requires std::integral<T> || std::floating_point<T>
+		void
+		readScalarArray(T* dst, size_t count)
 		{
-			uint16_t data;
-			read2Bytes(reinterpret_cast<uint8_t*>(&data));
+			readBytes(dst, sizeof(T) * count);
+		}
+
+		template <typename T>
+		requires std::integral<T> && isSimpleComparable<T>
+		void
+		readScalarArraySafe(T* dst, size_t count, T min, T max, const std::string& debugMsg)
+		{
+			for (size_t i = 0; i < count; i++)
+			{
+				readBytes(&dst[i], sizeof(T));
+
+				if (dst[i] < min)
+					throw LimitException(dst[i], min, i, debugMsg);
+				else if (dst[i] >= max)
+					throw LimitException(dst[i], max, i, debugMsg);
+			}
+		}
+
+		template <typename T>
+		requires std::integral<T> && isSimpleComparable<T>
+		void
+		readScalarArraySafe(T* dst, size_t count, T exact, const std::string& debugMsg)
+		{
+			for (size_t i = 0; i < count; i++)
+			{
+				readBytes(&dst[i], sizeof(T));
+
+				if (dst[i] != exact)
+					throw LimitException(dst[i], exact, i, debugMsg);
+			}
+		}
+
+		template <typename T>
+		requires std::integral<T> || std::floating_point<T>
+		void
+		readScalarArrayBE(T* dst, size_t count)
+		{
+			for (size_t i = 0; i < count; i++)
+			{
+				readBytesBE(&dst[i], sizeof(T));
+			}
+		}
+
+		template <typename T>
+		requires std::integral<T> && isSimpleComparable<T>
+		void
+		readScalarArrayBESafe(T* dst, size_t count, T min, T max, const std::string& debugMsg)
+		{
+			for (size_t i = 0; i < count; i++)
+			{
+				readBytesBE(&dst[i], sizeof(T));
+
+				if (dst[i] < min)
+					throw LimitException(dst[i], min, i, debugMsg);
+				else if (dst[i] >= max)
+					throw LimitException(dst[i], max, i, debugMsg);
+			}
+		}
+
+		template <typename T>
+		requires std::integral<T> && isSimpleComparable<T>
+		void
+		readScalarArrayBESafe(T* dst, size_t count, T exact, const std::string& debugMsg)
+		{
+			for (size_t i = 0; i < count; i++)
+			{
+				readBytesBE(&dst[i], sizeof(T));
+
+				if (dst[i] != exact)
+					throw LimitException(dst[i], exact, i, debugMsg);
+			}
+		}
+
+		//////////////////////////////////////////////////////////////////////////////
+		// Float Overloads
+
+		template <typename T>
+		requires std::floating_point<T> && isSimpleComparable<T>
+		T
+		readScalarSafe(T min, T max, uint8_t flags, const std::string& debugMsg)
+		{
+			T data;
+			readBytes(&data, sizeof(T));
+			data = _checkFloat<T>(data, min, max, flags, debugMsg);
+			return data;
+		}
+
+		template <typename T>
+		requires std::floating_point<T> && isSimpleComparable<T>
+		T
+		readScalarSafe(T exact, uint8_t flags, const std::string& debugMsg)
+		{
+			T data;
+			readBytes(&data, sizeof(T));
+			data = _checkFloat<T>(data, exact, flags, debugMsg);
+			return data;
+		}
+
+		// Dunno if BE floats are actually used
+		// But here's the code anyway
+		template <typename T>
+		requires std::floating_point<T> && isSimpleComparable<T>
+		T
+		readScalarBESafe(T min, T max, uint8_t flags, const std::string& debugMsg)
+		{
+			T data;
+			readBytesBE(&data, sizeof(T));
+			data = _checkFloat<T>(data, min, max, flags, debugMsg);
+			return data;
+		}
+
+		template <typename T>
+		requires std::floating_point<T> && isSimpleComparable<T>
+		T
+		readScalarBESafe(T exact, uint8_t flags, const std::string& debugMsg)
+		{
+			T data;
+			readBytesBE(&data, sizeof(T));
+			data = _checkFloat<T>(data, exact, flags, debugMsg);
+			return data;
+		}
+
+		//////////////////////////////////////////////////////////////////////////////
+		// Float Array Overloads
+
+		template <typename T>
+		requires std::floating_point<T> && isSimpleComparable<T>
+		void
+		readScalarArraySafe(T* dst, size_t count, T min, T max, uint8_t flags, const std::string& debugMsg)
+		{
+			for (size_t i = 0; i < count; i++)
+			{
+				readBytes(&dst[i], sizeof(T));
+				dst[i] = _checkFloat<T>(dst[i], min, max, flags, debugMsg);
+			}
+		}
+
+		template <typename T>
+		requires std::floating_point<T> && isSimpleComparable<T>
+		void
+		readScalarArraySafe(T* dst, size_t count, T exact, uint8_t flags, const std::string& debugMsg)
+		{
+			for (size_t i = 0; i < count; i++)
+			{
+				readBytes(&dst[i], sizeof(T));
+				dst[i] = _checkFloat<T>(dst[i], exact, flags, debugMsg);
+			}
+		}
+
+		template <typename T>
+		requires std::floating_point<T> && isSimpleComparable<T>
+		void
+		readScalarArrayBESafe(T* dst, size_t count, T min, T max, uint8_t flags, const std::string& debugMsg)
+		{
+			for (size_t i = 0; i < count; i++)
+			{
+				readBytesBE(&dst[i], sizeof(T));
+				dst[i] = _checkFloat<T>(dst[i], min, max, flags, debugMsg);
+			}
+		}
+
+		template <typename T>
+		requires std::floating_point<T> && isSimpleComparable<T>
+		void
+		readScalarArrayBESafe(T* dst, size_t count, T exact, uint8_t flags, const std::string& debugMsg)
+		{
+			for (size_t i = 0; i < count; i++)
+			{
+				readBytesBE(&dst[i], sizeof(T));
+				dst[i] = _checkFloat<T>(dst[i], exact, flags, debugMsg);
+			}
+		}
+
+		//////////////////////////////////////////////////////////////////////////////
+		// Bit-wise Scalars
+
+		template <typename T>
+		requires std::integral<T>
+		T
+		readBitwiseScalar(int readBitCount)
+		{
+			if (readBitCount == 0)
+				throw std::invalid_argument("Read bits cannot be 0");
+			if (readBitCount > 64)
+				throw std::invalid_argument("Read bits cannot be >= 64");
+			
+			int bytesToRead = std::ceil((m_bitOffset + readBitCount) / 8.0F);
+			T retValue = _readBitwiseScalar<T>(readBitCount, bytesToRead);
+			m_bitOffset = (m_bitOffset + readBitCount) % 8;
+			// More data in the previous position
+			if (m_bitOffset > 0)
+				seek(-1, std::ios::cur);
+
+			return retValue;
+		}
+
+		//////////////////////////////////////////////////////////////////////////////
+		// Half-Floats
+
+		float
+		readHalf()
+		{
+			return _readHalfFloat();
+		}
+
+		float
+		readHalfSafe(float min, float max, uint8_t flags, const std::string& debugMsg)
+		{
+			float data = _readHalfFloat();
+			return _checkFloat<float>(data, min, max, flags, debugMsg);
+		}
+
+		float
+		readHalfSafe(float exact, uint8_t flags, const std::string& debugMsg)
+		{
+			float data = _readHalfFloat();
+			return _checkFloat<float>(data, exact, flags, debugMsg);
+		}
+
+
+		void
+		readHalfArray(float* dst, size_t count)
+		{
+			for (size_t i = 0; i < count; i++)
+				dst[i] = readHalf();
+		}
+
+		void
+		readHalfArraySafe(float* dst, size_t count, float min, float max, uint8_t flags, const std::string& debugMsg)
+		{
+			for (size_t i = 0; i < count; i++)
+			{
+				dst[i] = readHalf();
+				dst[i] = _checkFloat<float>(dst[i], min, max, flags, debugMsg);
+			}
+		}
+
+		void
+		readHalfArraySafe(float* dst, size_t count, float exact, uint8_t flags, const std::string& debugMsg)
+		{
+			for (size_t i = 0; i < count; i++)
+			{
+				dst[i] = readHalf();
+				dst[i] = _checkFloat<float>(dst[i], exact, flags, debugMsg);
+			}
+		}
+
+		//////////////////////////////////////////////////////////////////////////////
+		// LEB
+
+		uint64_t
+		readULEB(int maxBits = 64)
+		{
+			return _readULEB(maxBits);
+		}
+
+		uint64_t
+		readULEBSafe(uint64_t min, uint64_t max, const std::string& debugMsg, int maxBits = 64)
+		{
+			uint64_t data = _readULEB(maxBits);
 
 			if (data < min)
-				throw LimitException((uint64_t)data, min, debugMsg);
-			else if (data > max)
-				throw LimitException((uint64_t)data, max, debugMsg);
-			return data;
-		}
+				throw LimitException(data, min, debugMsg);
+			else if (data >= max)
+				throw LimitException(data, max, debugMsg);
 
-		int16_t
-		readInt16()
-		{
-			int16_t data;
-			read2Bytes(reinterpret_cast<uint8_t*>(&data));
-			return data;
-		}
-
-		int16_t
-		readInt16(int16_t min, int16_t max, const std::string& debugMsg)
-		{
-			int16_t data;
-			read2Bytes(reinterpret_cast<uint8_t*>(&data));
-
-			if (data < min)
-				throw LimitException((int64_t)data, max, debugMsg);
-			else if (data > max)
-				throw LimitException((int64_t)data, max, debugMsg);
-			return data;
-		}
-
-		uint16_t
-		readUInt16BE()
-		{
-			uint16_t data;
-			read2BytesBE(reinterpret_cast<uint8_t*>(&data));
-			return data;
-		}
-
-		uint16_t
-		readUInt16BE(uint16_t min, uint16_t max, const std::string& debugMsg)
-		{
-			uint16_t data;
-			read2BytesBE(reinterpret_cast<uint8_t*>(&data));
-
-			if (data < min)
-				throw LimitException((uint64_t)data, min, debugMsg);
-			else if (data > max)
-				throw LimitException((uint64_t)data, max, debugMsg);
-			return data;
-		}
-
-		int16_t
-		readInt16BE()
-		{
-			int16_t data;
-			read2BytesBE(reinterpret_cast<uint8_t*>(&data));
-			return data;
-		}
-
-		int16_t
-		readInt16BE(int16_t min, int16_t max, const std::string& debugMsg)
-		{
-			int16_t data;
-			read2BytesBE(reinterpret_cast<uint8_t*>(&data));
-
-			if (data < min)
-				throw LimitException((int64_t)data, max, debugMsg);
-			else if (data > max)
-				throw LimitException((int64_t)data, max, debugMsg);
-			return data;
-		}
-
-		uint32_t
-		readUInt32()
-		{
-			uint32_t data;
-			read4Bytes(reinterpret_cast<uint8_t*>(&data));
-			return data;
-		}
-
-		uint32_t
-		readUInt32(uint32_t min, uint32_t max, const std::string& debugMsg)
-		{
-			uint32_t data;
-			read4Bytes(reinterpret_cast<uint8_t*>(&data));
-
-			if (data < min)
-				throw LimitException((uint64_t)data, min, debugMsg);
-			else if (data > max)
-				throw LimitException((uint64_t)data, max, debugMsg);
-			return data;
-		}
-
-		int32_t
-		readInt32()
-		{
-			int32_t data;
-			read4Bytes(reinterpret_cast<uint8_t*>(&data));
-			return data;
-		}
-
-		int32_t
-		readInt32(int32_t min, int32_t max, const std::string& debugMsg)
-		{
-			int32_t data;
-			read4Bytes(reinterpret_cast<uint8_t*>(&data));
-
-			if (data < min)
-				throw LimitException((int64_t)data, max, debugMsg);
-			else if (data > max)
-				throw LimitException((int64_t)data, max, debugMsg);
-			return data;
-		}
-
-		uint32_t
-		readUInt32BE()
-		{
-			uint32_t data;
-			read4BytesBE(reinterpret_cast<uint8_t*>(&data));
-			return data;
-		}
-
-		uint32_t
-		readUInt32BE(uint32_t min, uint32_t max, const std::string& debugMsg)
-		{
-			uint32_t data;
-			read4BytesBE(reinterpret_cast<uint8_t*>(&data));
-
-			if (data < min)
-				throw LimitException((uint64_t)data, min, debugMsg);
-			else if (data > max)
-				throw LimitException((uint64_t)data, max, debugMsg);
-			return data;
-		}
-
-		int32_t
-		readInt32BE()
-		{
-			int32_t data;
-			read4BytesBE(reinterpret_cast<uint8_t*>(&data));
-			return data;
-		}
-
-		int32_t
-		readInt32BE(int32_t min, int32_t max, const std::string& debugMsg)
-		{
-			int32_t data;
-			read4BytesBE(reinterpret_cast<uint8_t*>(&data));
-
-			if (data < min)
-				throw LimitException((int64_t)data, max, debugMsg);
-			else if (data > max)
-				throw LimitException((int64_t)data, max, debugMsg);
 			return data;
 		}
 
 		uint64_t
-		readUInt64()
+		readULEBSafe(uint64_t exact, const std::string& debugMsg, int maxBits = 64)
 		{
-			uint64_t data;
-			read8Bytes(reinterpret_cast<uint8_t*>(&data));
+			uint64_t data = _readULEB(maxBits);
+
+			if (data != exact)
+				throw LimitException(data, exact, debugMsg);
+
 			return data;
 		}
 
-		uint64_t
-		readUInt64(uint64_t min, uint64_t max, const std::string& debugMsg)
+		void
+		readULEBArray(uint64_t* dst, size_t count, int maxBits = 64)
 		{
-			uint64_t data;
-			read8Bytes(reinterpret_cast<uint8_t*>(&data));
+			for (size_t i = 0; i < count; i++)
+				dst[i] = _readULEB(maxBits);
+		}
 
-			if (data < min)
+		void
+		readULEBArraySafe(uint64_t* dst, size_t count, uint64_t min, uint64_t max, const std::string& debugMsg, int maxBits = 64)
+		{
+			for (size_t i = 0; i < count; i++)
+			{
+				dst[i] = _readULEB(maxBits);
+				
+				if (dst[i] < min)
+					throw LimitException(dst[i], min, i, debugMsg);
+				else if (dst[i] >= max)
+					throw LimitException(dst[i], max, i, debugMsg);
+			}
+		}
+
+		void
+		readULEBArraySafe(uint64_t* dst, size_t count, uint64_t exact, const std::string& debugMsg, int maxBits = 64)
+		{
+			for (size_t i = 0; i < count; i++)
+			{
+				dst[i] = _readULEB(maxBits);
+				
+				if (dst[i] != exact)
+					throw LimitException(dst[i], exact, i, debugMsg);
+			}
+		}
+
+		//////////////////////////////////////////////////////////////////////////////
+		// Other members
+
+		int
+		tellBit() const
+		{
+			return m_bitOffset;
+		}
+
+		BinaryReader&
+		seekBit(int count, std::ios_base::seekdir way)
+		{
+			int seekTo = m_bitOffset;
+			switch(way)
+			{
+			case(std::ios::beg):
+				seekTo = count;
+				break;
+			case(std::ios::cur):
+				seekTo += count;
+				break;
+			// Silly
+			case(std::ios::end):
+				seekTo = 7 - count;
+				break;
+			}
+
+			std::div_t bytesAndBits = std::div(seekTo, 8);
+			int bytesToSeek = bytesAndBits.quot;
+			int bitsToSeek = bytesAndBits.rem;
+			if (bitsToSeek < 0)
+			{
+				bytesToSeek -= 1;
+				bitsToSeek = 7 - bytesAndBits.rem;
+			}
+
+			seek(bytesToSeek, std::ios::cur);
+			m_bitOffset = bitsToSeek;
+
+			return *this;
+		}
+
+	private:
+		//////////////////////////////////////////////////////////////////////////////
+		// Utils
+
+		// Unsigned
+		template <typename T>
+		requires std::unsigned_integral<T>
+		T
+		_readBitwiseScalar(int bitCount, int byteCount)
+		{
+			static uint64_t buf;
+			readBytes(&buf, byteCount);
+			T ret = buf >> m_bitOffset;
+			return ret & (T)(POW2[bitCount] - 1);
+		}
+
+		// Signed
+		template <typename T>
+		requires std::signed_integral<T>
+		T
+		_readBitwiseScalar(int bitCount, int byteCount)
+		{
+			static uint64_t buf;
+			readBytes(&buf, byteCount);
+			T ret = buf >> m_bitOffset;
+			ret &= (T)(POW2[bitCount] - 1);
+
+			// Convert signed integer of width `bitCount` to width `sizeof(T)`
+			T signedMask = (T)(POW2[bitCount - 1]);
+			if ((ret & signedMask) > 0)
+			{
+				// Fill T-width integer with 1s, then shift right `bitcount`
+				T shiftSignedBitMask = (T)(POW2[sizeof(T) * 8] - 1) << bitCount;
+				ret |= shiftSignedBitMask;
+			}
+			
+			return ret;
+		}
+
+		template <typename T>
+		requires std::floating_point<T>
+		T
+		_convertFloat(T data, uint8_t flags, const std::string& debugMsg)
+		{
+			T fixed = data;
+
+			switch(std::fpclassify(data))
+			{
+				case FP_INFINITE:
+				{
+					if (flags & CONV_INF)
+					{
+						if (data == std::numeric_limits<T>::infinity())
+						{
+							const static T floatMax = std::numeric_limits<T>::max();
+							std::memcpy(&fixed, &floatMax, sizeof(T));
+						}
+						else
+						{
+							const static T floatMin = -std::numeric_limits<T>::max();
+							std::memcpy(&fixed, &floatMin, sizeof(T));
+						}
+					}
+					else
+						throw LimitException(data, 0, debugMsg);
+					break;
+				}
+				case FP_NAN:
+				{
+					throw NonNormalFloatException(data, debugMsg);
+					break;
+				}
+				case FP_ZERO:
+				{
+					if (flags & CONV_ZERO)
+						fixed = 0;
+					break;
+				}
+				case FP_SUBNORMAL:
+				{
+					if (flags & FAIL_SUBNORM)
+						throw NonNormalFloatException(data, debugMsg);
+					break;
+				}
+				case FP_NORMAL:
+				default:
+					break;
+			}
+
+			return fixed;
+		}
+
+		template <typename T>
+		requires std::floating_point<T>
+		T
+		_checkFloat(T data, T min, T max, uint8_t flags, const std::string& debugMsg)
+		{
+			T fixed = _convertFloat(data, flags, debugMsg);
+
+			int64_t intMin;
+			int64_t intMax;
+			int64_t intData;
+			std::memcpy(&intMin, &min, sizeof(T));
+			std::memcpy(&intMax, &max, sizeof(T));
+			std::memcpy(&intData, &fixed, sizeof(T));
+
+			if (intData < intMin)
 				throw LimitException(data, min, debugMsg);
-			else if (data > max)
+			else if (intData >= intMax)
 				throw LimitException(data, max, debugMsg);
-			return data;
+
+			return fixed;
 		}
 
-		int64_t
-		readInt64()
+		template <typename T>
+		requires std::floating_point<T>
+		T
+		_checkFloat(T data, T exact, uint8_t flags, const std::string& debugMsg)
 		{
-			int64_t data;
-			read8Bytes(reinterpret_cast<uint8_t*>(&data));
-			return data;
-		}
+			T fixed = _convertFloat(data, flags, debugMsg);
 
-		int64_t
-		readInt64(int64_t min, int64_t max, const std::string& debugMsg)
-		{
-			int64_t data;
-			read8Bytes(reinterpret_cast<uint8_t*>(&data));
+			int64_t intExact;
+			int64_t intData;
+			std::memcpy(&intExact, &exact, sizeof(T));
+			std::memcpy(&intData, &fixed, sizeof(T));
 
-			if (data < min)
-				throw LimitException(data, min, debugMsg);
-			else if (data > max)
-				throw LimitException(data, max, debugMsg);
-			return data;
-		}
+			if (intData != exact)
+				throw LimitException(data, exact, debugMsg);
 
-		uint64_t
-		readUInt64BE()
-		{
-			uint64_t data;
-			read8BytesBE(reinterpret_cast<uint8_t*>(&data));
-			return data;
-		}
-
-		uint64_t
-		readUInt64BE(uint64_t min, uint64_t max, const std::string& debugMsg)
-		{
-			uint64_t data;
-			read8BytesBE(reinterpret_cast<uint8_t*>(&data));
-
-			if (data < min)
-				throw LimitException(data, min, debugMsg);
-			else if (data > max)
-				throw LimitException(data, max, debugMsg);
-			return data;
-		}
-
-		int64_t
-		readInt64BE()
-		{
-			int64_t data;
-			read8BytesBE(reinterpret_cast<uint8_t*>(&data));
-			return data;
-		}
-
-		int64_t
-		readInt64BE(int64_t min, int64_t max, const std::string& debugMsg)
-		{
-			int64_t data;
-			read8BytesBE(reinterpret_cast<uint8_t*>(&data));
-
-			if (data < min)
-				throw LimitException(data, min, debugMsg);
-			else if (data > max)
-				throw LimitException(data, max, debugMsg);
-			return data;
+			return fixed;
 		}
 
 		// https://github.com/yretenai/Lotus/blob/500c5d615563467a87bd002df70b789e944c3240/Lotus.Struct/CursoredMemoryMarshal.cs#L125C31-L125C38
 		uint64_t
-		readULEB(int maxBits = 64)
+		_readULEB(int maxBits = 64)
 		{
 			uint64_t result = 0;
 			
 			uint8_t curByte;
 			for (int curShift = 0; curShift < maxBits - 1; curShift += 7)
 			{
-				curByte = readUInt8();
+				curByte = readScalar<uint8_t>();
 				result |= (curByte & 0x7Ful) << curShift;
 
 				if (curByte <= 0x7ful)
 					return result;
 			}
 
-			curByte = readUInt8();
+			curByte = readScalar<uint8_t>();
 			result |= (uint64_t)curByte << (maxBits - 1);
 			return result;
-		}
-
-		uint64_t
-		readULEB(uint64_t min, uint64_t max, const std::string& debugMsg, int maxBits = 64)
-		{
-			uint64_t data = readULEB(maxBits);
-
-			if (data < min)
-				throw LimitException(data, min, debugMsg);
-			else if (data > max)
-				throw LimitException(data, max, debugMsg);
-			return data;
 		}
 
 		// I saved this from somewhere online
 		// If I remembered where, I would give credit
 		float
-		readHalf()
+		_readHalfFloat()
 		{
-			int hbits = this->readUInt16();
+			int hbits = readScalar<uint16_t>();
 			int mant = hbits & 0x03ff;            // 10 bits mantissa
 			int exp = hbits & 0x7c00;            // 5 bits exponent
 			if (exp == 0x7c00)                   // NaN/Inf
@@ -399,768 +714,6 @@ namespace BinaryReader
 			float ret;
 			std::memcpy(&ret, &t, 4);
 			return ret;
-		}
-
-		float
-		readHalf(float min, float max, uint8_t flags, const std::string& debugMsg)
-		{
-			float data = this->readHalf();
-			
-			int32_t castData = 0;
-			switch(std::fpclassify(data))
-			{
-				case FP_INFINITE:
-				{
-					if (flags & CONV_INF)
-					{
-						if (data == std::numeric_limits<float>::infinity())
-						{
-							const static float floatMax = std::numeric_limits<float>::max();
-							std::memcpy(&castData, &floatMax, 4);
-						}
-						else
-						{
-							const static float floatMin = -std::numeric_limits<float>::max();
-							std::memcpy(&castData, &floatMin, 4);
-						}
-					}
-					else
-						throw LimitException(data, 0, debugMsg);
-					break;
-				}
-				case FP_NAN:
-				{
-					throw NonNormalFloatException(data, debugMsg);
-					break;
-				}
-				case FP_ZERO:
-				{
-					if (flags & CONV_ZERO)
-						castData = 0;
-					break;
-				}
-				case FP_SUBNORMAL:
-				{
-					if (flags & FAIL_SUBNORM)
-						throw NonNormalFloatException(data, debugMsg);
-					break;
-				}
-				case FP_NORMAL:
-				{
-					std::memcpy(&castData, &data, 4);
-					break;
-				}
-				default:
-					break;
-			}
-
-			int32_t intMin;
-			int32_t intMax;
-			std::memcpy(&intMin, &min, 4);
-			std::memcpy(&intMax, &max, 4);
-			if (castData < intMin)
-				throw LimitException(data, min, debugMsg);
-			else if (castData > intMax)
-				throw LimitException(data, max, debugMsg);
-			return data;
-		}
-
-		float
-		readFloat()
-		{
-			float data;
-			read4Bytes(reinterpret_cast<uint8_t*>(&data));
-			return data;
-		}
-
-		float
-		readFloat(float min, float max, uint8_t flags, const std::string& debugMsg)
-		{
-			float data;
-			read4Bytes(reinterpret_cast<uint8_t*>(&data));
-
-			int32_t castData = 0;
-			switch(std::fpclassify(data))
-			{
-				case FP_INFINITE:
-				{
-					if (flags & CONV_INF)
-					{
-						if (data == std::numeric_limits<float>::infinity())
-						{
-							const static float floatMax = std::numeric_limits<float>::max();
-							std::memcpy(&castData, &floatMax, 4);
-						}
-						else
-						{
-							const static float floatMin = -std::numeric_limits<float>::max();
-							std::memcpy(&castData, &floatMin, 4);
-						}
-					}
-					else
-						throw LimitException(data, 0, debugMsg);
-					break;
-				}
-				case FP_NAN:
-				{
-					throw NonNormalFloatException(data, debugMsg);
-					break;
-				}
-				case FP_ZERO:
-				{
-					if (flags & CONV_ZERO)
-						castData = 0;
-					break;
-				}
-				case FP_SUBNORMAL:
-				{
-					if (flags & FAIL_SUBNORM)
-						throw NonNormalFloatException(data, debugMsg);
-					break;
-				}
-				case FP_NORMAL:
-				{
-					std::memcpy(&castData, &data, 4);
-					break;
-				}
-				default:
-					break;
-			}
-
-			int32_t intMin;
-			int32_t intMax;
-			std::memcpy(&intMin, &min, 4);
-			std::memcpy(&intMax, &max, 4);
-			if (castData < intMin)
-				throw LimitException(data, min, debugMsg);
-			else if (castData > intMax)
-				throw LimitException(data, max, debugMsg);
-			return data;
-		}
-
-		double
-		readDouble()
-		{
-			double data;
-			read8Bytes(reinterpret_cast<uint8_t*>(&data));
-			return data;
-		}
-
-		double
-		readDouble(double min, double max, uint8_t flags, const std::string& debugMsg)
-		{
-			double data;
-			read8Bytes(reinterpret_cast<uint8_t*>(&data));
-			
-			int64_t castData = 0;
-			switch(std::fpclassify(data))
-			{
-				case FP_INFINITE:
-				{
-					if (flags & CONV_INF)
-					{
-						if (data == std::numeric_limits<double>::infinity())
-						{
-							const static double doubleMax = std::numeric_limits<double>::max();
-							std::memcpy(&castData, &doubleMax, 4);
-						}
-						else
-						{
-							const static double doubleMin = -std::numeric_limits<double>::max();
-							std::memcpy(&castData, &doubleMin, 4);
-						}
-					}
-					else
-						throw LimitException(data, 0, debugMsg);
-					break;
-				}
-				case FP_NAN:
-				{
-					throw NonNormalFloatException(data, debugMsg);
-					break;
-				}
-				case FP_ZERO:
-				{
-					if (flags & CONV_ZERO)
-						castData = 0;
-					break;
-				}
-				case FP_SUBNORMAL:
-				{
-					if (flags & FAIL_SUBNORM)
-						throw NonNormalFloatException(data, debugMsg);
-					break;
-				}
-				case FP_NORMAL:
-				{
-					std::memcpy(&castData, &data, 8);
-					break;
-				}
-				default:
-					break;
-			}
-
-			int64_t intMin;
-			int64_t intMax;
-			std::memcpy(&intMin, &min, 8);
-			std::memcpy(&intMax, &max, 8);
-			if (castData < intMin)
-				throw LimitException(data, min, debugMsg);
-			else if (castData > intMax)
-				throw LimitException(data, max, debugMsg);
-			return data;
-		}
-
-		std::string
-		readAsciiString(size_t len)
-		{
-			std::vector<uint8_t> buffer = readUInt8Array(len);
-			std::string data = std::string((char*)buffer.data(), len);
-			return data;
-		}
-
-		std::vector<uint8_t>
-		readUInt8Array(size_t count)
-		{
-			std::vector<uint8_t> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readUInt8();
-			return data;
-		}
-
-		std::vector<uint8_t>
-		readUInt8Array(size_t count, uint8_t min, uint8_t max, const std::string& debugMsg)
-		{
-			std::vector<uint8_t> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readUInt8(min, max, debugMsg);
-			return data;
-		}
-
-		void
-		readUInt8Array(uint8_t* ptr, size_t count)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readUInt8();
-		}
-
-		void
-		readUInt8Array(uint8_t* ptr, size_t count, uint8_t min, uint8_t max, const std::string& debugMsg)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readUInt8(min, max, debugMsg);
-		}
-
-		std::vector<int8_t>
-		readInt8Array(size_t count)
-		{
-			std::vector<int8_t> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readInt8();
-			return data;
-		}
-
-		std::vector<int8_t>
-		readInt8Array(size_t count, int8_t min, int8_t max, const std::string& debugMsg)
-		{
-			std::vector<int8_t> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readInt8(min, max, debugMsg);
-			return data;
-		}
-
-		void
-		readInt8Array(int8_t* ptr, size_t count)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readInt8();
-		}
-
-		void
-		readInt8Array(int8_t* ptr, size_t count, int8_t min, int8_t max, const std::string& debugMsg)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readInt8(min, max, debugMsg);
-		}
-
-		std::vector<uint16_t>
-		readUInt16Array(size_t count)
-		{
-			std::vector<uint16_t> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readUInt16();
-			return data;
-		}
-
-		std::vector<uint16_t>
-		readUInt16Array(size_t count, uint16_t min, uint16_t max, const std::string& debugMsg)
-		{
-			std::vector<uint16_t> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readUInt16(min, max, debugMsg);
-			return data;
-		}
-
-		void
-		readUInt16Array(uint16_t* ptr, size_t count)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readUInt16();
-		}
-
-		void
-		readUInt16Array(uint16_t* ptr, size_t count, uint16_t min, uint16_t max, const std::string& debugMsg)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readInt16(min, max, debugMsg);
-		}
-
-		std::vector<int16_t>
-		readInt16Array(size_t count)
-		{
-			std::vector<int16_t> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readInt16();
-			return data;
-		}
-
-		std::vector<int16_t>
-		readInt16Array(size_t count, int16_t min, int16_t max, const std::string& debugMsg)
-		{
-			std::vector<int16_t> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readInt16(min, max, debugMsg);
-			return data;
-		}
-
-		void
-		readInt16Array(int16_t* ptr, size_t count)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readInt16();
-		}
-
-		void
-		readInt16Array(int16_t* ptr, size_t count, int16_t min, int16_t max, const std::string& debugMsg)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readInt16(min, max, debugMsg);
-		}
-
-		std::vector<uint16_t>
-		readUInt16BEArray(size_t count)
-		{
-			std::vector<uint16_t> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readUInt16BE();
-			return data;
-		}
-
-		std::vector<uint16_t>
-		readUInt16BEArray(size_t count, uint16_t min, uint16_t max, const std::string& debugMsg)
-		{
-			std::vector<uint16_t> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readUInt16BE(min, max, debugMsg);
-			return data;
-		}
-
-		void
-		readUInt16BEArray(uint16_t* ptr, size_t count)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readUInt16BE();
-		}
-
-		void
-		readUInt16BEArray(uint16_t* ptr, size_t count, uint16_t min, uint16_t max, const std::string& debugMsg)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readInt16BE(min, max, debugMsg);
-		}
-
-		std::vector<int16_t>
-		readInt16BEArray(size_t count)
-		{
-			std::vector<int16_t> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readInt16BE();
-			return data;
-		}
-
-		std::vector<int16_t>
-		readInt16BEArray(size_t count, int16_t min, int16_t max, const std::string& debugMsg)
-		{
-			std::vector<int16_t> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readInt16BE(min, max, debugMsg);
-			return data;
-		}
-
-		void
-		readInt16BEArray(int16_t* ptr, size_t count)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readInt16BE();
-		}
-
-		void
-		readInt16BEArray(int16_t* ptr, size_t count, int16_t min, int16_t max, const std::string& debugMsg)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readInt16BE(min, max, debugMsg);
-		}
-
-		std::vector<uint32_t>
-		readUInt32Array(size_t count)
-		{
-			std::vector<uint32_t> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readUInt32();
-			return data;
-		}
-
-		std::vector<uint32_t>
-		readUInt32Array(size_t count, uint32_t min, uint32_t max, const std::string& debugMsg)
-		{
-			std::vector<uint32_t> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readUInt32(min, max, debugMsg);
-			return data;
-		}
-
-		void
-		readUInt32Array(uint32_t* ptr, size_t count)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readUInt32();
-		}
-
-		void
-		readUInt32Array(uint32_t* ptr, size_t count, uint32_t min, uint32_t max, const std::string& debugMsg)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readInt32(min, max, debugMsg);
-		}
-
-		std::vector<int32_t>
-		readInt32Array(size_t count)
-		{
-			std::vector<int32_t> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readInt32();
-			return data;
-		}
-
-		std::vector<int32_t>
-		readInt32Array(size_t count, int32_t min, int32_t max, const std::string& debugMsg)
-		{
-			std::vector<int32_t> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readInt32(min, max, debugMsg);
-			return data;
-		}
-
-		void
-		readInt32Array(int32_t* ptr, size_t count)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readInt32();
-		}
-
-		void
-		readInt32Array(int32_t* ptr, size_t count, int32_t min, int32_t max, const std::string& debugMsg)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readInt32(min, max, debugMsg);
-		}
-
-		std::vector<uint32_t>
-		readUInt32BEArray(size_t count)
-		{
-			std::vector<uint32_t> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readUInt32BE();
-			return data;
-		}
-
-		std::vector<uint32_t>
-		readUInt32BEArray(size_t count, uint32_t min, uint32_t max, const std::string& debugMsg)
-		{
-			std::vector<uint32_t> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readUInt32BE(min, max, debugMsg);
-			return data;
-		}
-
-		void
-		readUInt32BEArray(uint32_t* ptr, size_t count)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readUInt32BE();
-		}
-
-		void
-		readUInt32BEArray(uint32_t* ptr, size_t count, uint32_t min, uint32_t max, const std::string& debugMsg)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readInt32BE(min, max, debugMsg);
-		}
-
-		std::vector<int32_t>
-		readInt32BEArray(size_t count)
-		{
-			std::vector<int32_t> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readInt32BE();
-			return data;
-		}
-
-		std::vector<int32_t>
-		readInt32BEArray(size_t count, int32_t min, int32_t max, const std::string& debugMsg)
-		{
-			std::vector<int32_t> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readInt32BE(min, max, debugMsg);
-			return data;
-		}
-
-		void
-		readInt32BEArray(int32_t* ptr, size_t count)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readInt32BE();
-		}
-
-		void
-		readInt32BEArray(int32_t* ptr, size_t count, int32_t min, int32_t max, const std::string& debugMsg)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readInt32BE(min, max, debugMsg);
-		}
-
-		std::vector<uint64_t>
-		readUInt64Array(size_t count)
-		{
-			std::vector<uint64_t> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readUInt64();
-			return data;
-		}
-
-		std::vector<uint64_t>
-		readUInt64Array(size_t count, uint64_t min, uint64_t max, const std::string& debugMsg)
-		{
-			std::vector<uint64_t> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readUInt64(min, max, debugMsg);
-			return data;
-		}
-
-		void
-		readUInt64Array(uint64_t* ptr, size_t count)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readUInt64();
-		}
-
-		void
-		readUInt64Array(uint64_t* ptr, size_t count, uint64_t min, uint64_t max, const std::string& debugMsg)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readInt64(min, max, debugMsg);
-		}
-
-		std::vector<int64_t>
-		readInt64Array(size_t count)
-		{
-			std::vector<int64_t> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readInt64();
-			return data;
-		}
-
-		std::vector<int64_t>
-		readInt64Array(size_t count, int64_t min, int64_t max, const std::string& debugMsg)
-		{
-			std::vector<int64_t> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readInt64(min, max, debugMsg);
-			return data;
-		}
-
-		void
-		readInt64Array(int64_t* ptr, size_t count)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readInt64();
-		}
-
-		void
-		readInt64Array(int64_t* ptr, size_t count, int64_t min, int64_t max, const std::string& debugMsg)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readInt64(min, max, debugMsg);
-		}
-
-		std::vector<uint64_t>
-		readUInt64BEArray(size_t count)
-		{
-			std::vector<uint64_t> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readUInt64BE();
-			return data;
-		}
-
-		std::vector<uint64_t>
-		readUInt64BEArray(size_t count, uint64_t min, uint64_t max, const std::string& debugMsg)
-		{
-			std::vector<uint64_t> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readUInt64BE(min, max, debugMsg);
-			return data;
-		}
-
-		void
-		readUInt64BEArray(uint64_t* ptr, size_t count)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readUInt64BE();
-		}
-
-		void
-		readUInt64BEArray(uint64_t* ptr, size_t count, uint64_t min, uint64_t max, const std::string& debugMsg)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readInt64BE(min, max, debugMsg);
-		}
-
-		std::vector<int64_t>
-		readInt64BEArray(size_t count)
-		{
-			std::vector<int64_t> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readInt64BE();
-			return data;
-		}
-
-		std::vector<int64_t>
-		readInt64BEArray(size_t count, int64_t min, int64_t max, const std::string& debugMsg)
-		{
-			std::vector<int64_t> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readInt64BE(min, max, debugMsg);
-			return data;
-		}
-
-		void
-		readInt64BEArray(int64_t* ptr, size_t count)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readInt64BE();
-		}
-
-		void
-		readInt64BEArray(int64_t* ptr, size_t count, int64_t min, int64_t max, const std::string& debugMsg)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readInt64BE(min, max, debugMsg);
-		}
-
-		std::vector<float>
-		readHalfArray(size_t count)
-		{
-			std::vector<float> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readHalf();
-			return data;
-		}
-
-		std::vector<float>
-		readHalfArray(size_t count, float min, float max, uint8_t flags, const std::string& debugMsg)
-		{
-			std::vector<float> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readHalf(min, max, flags, debugMsg);
-			return data;
-		}
-
-		void
-		readHalfArray(float* ptr, size_t count)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readHalf();
-		}
-
-		void
-		readHalfArray(float* ptr, size_t count, float min, float max, uint8_t flags, const std::string& debugMsg)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readHalf(min, max, flags, debugMsg);
-		}
-
-		std::vector<float>
-		readSingleArray(size_t count)
-		{
-			std::vector<float> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readFloat();
-			return data;
-		}
-
-		std::vector<float>
-		readSingleArray(size_t count, float min, float max, uint8_t flags, const std::string& debugMsg)
-		{
-			std::vector<float> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readFloat(min, max, flags, debugMsg);
-			return data;
-		}
-
-		void
-		readSingleArray(float* ptr, size_t count)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readFloat();
-		}
-
-		void
-		readSingleArray(float* ptr, size_t count, float min, float max, uint8_t flags, const std::string& debugMsg)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readFloat(min, max, flags, debugMsg);
-		}
-
-		std::vector<double>
-		readDoubleArray(size_t count)
-		{
-			std::vector<double> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readDouble();
-			return data;
-		}
-
-		std::vector<double>
-		readDoubleArray(size_t count, double min, double max, uint8_t flags, const std::string& debugMsg)
-		{
-			std::vector<double> data(count);
-			for (size_t x = 0; x < count; x++)
-				data[x] = readDouble(min, max, flags, debugMsg);
-			return data;
-		}
-
-		void
-		readDoubleArray(double* ptr, size_t count)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readDouble();
-		}
-
-		void
-		readDoubleArray(double* ptr, size_t count, double min, double max, uint8_t flags, const std::string& debugMsg)
-		{
-			for (size_t x = 0; x < count; x++)
-				ptr[x] = readDouble(min, max, flags, debugMsg);
 		}
 	};
 };

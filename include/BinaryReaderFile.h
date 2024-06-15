@@ -8,16 +8,6 @@
 #include <string>
 #include <memory>
 
-#ifdef __cpp_lib_filesystem
-	#define USING_FILESYSTEM 1
-	#include <filesystem>
-	namespace fs = std::filesystem;
-#elif __cpp_lib_experimental_filesystem
-	#define USING_FILESYSTEM 1
-	#include <experimental/filesystem>
-	namespace fs = std::experimental::filesystem;
-#endif
-
 namespace BinaryReader
 {
 	class BinaryReaderFile : public BinaryReader
@@ -27,56 +17,16 @@ namespace BinaryReader
 
 	private:
 		void
-		read1Byte(uint8_t* dst) override
+		readBytes(void* dst, int count) override
 		{
-			this->_reader.read((char*)dst, 1);
+			this->_reader.read((char*)dst, count);
 		}
-
+		
 		void
-		read2Bytes(uint8_t* dst) override
+		readBytesBE(void* dst, int count) override
 		{
-			this->_reader.read((char*)dst, 2);
-		}
-
-		void
-		read2BytesBE(uint8_t* dst) override
-		{
-			this->_reader.read((char*)dst + 1, 1);
-			this->_reader.read((char*)dst, 1);
-		}
-
-		void
-		read4Bytes(uint8_t* dst) override
-		{
-			this->_reader.read((char*)dst, 4);
-		}
-
-		void
-		read4BytesBE(uint8_t* dst) override
-		{
-			this->_reader.read((char*)dst + 3, 1);
-			this->_reader.read((char*)dst + 2, 1);
-			this->_reader.read((char*)dst + 1, 1);
-			this->_reader.read((char*)dst, 1);
-		}
-
-		void
-		read8Bytes(uint8_t* dst) override
-		{
-			this->_reader.read((char*)dst, 8);
-		}
-
-		void
-		read8BytesBE(uint8_t* dst) override
-		{
-			this->_reader.read((char*)dst + 7, 1);
-			this->_reader.read((char*)dst + 6, 1);
-			this->_reader.read((char*)dst + 5, 1);
-			this->_reader.read((char*)dst + 4, 1);
-			this->_reader.read((char*)dst + 3, 1);
-			this->_reader.read((char*)dst + 2, 1);
-			this->_reader.read((char*)dst + 1, 1);
-			this->_reader.read((char*)dst, 1);
+			for (size_t i = count; i > 0; i--)
+				this->_reader.read((char*)dst + i, 1);
 		}
 
 	public:
@@ -96,10 +46,6 @@ namespace BinaryReader
 			this->setLength();
 			this->seek(0, std::ios_base::beg);
 		}
-		
-		#ifdef USING_FILESYSTEM
-		BinaryReaderFile(const fs::path& filePath) : BinaryReaderFile(filePath.string()) {}
-		#endif
 
 		size_t
 		getLength() override
@@ -108,7 +54,7 @@ namespace BinaryReader
 		}
 
 		BinaryReaderFile&
-		seek(std::streamoff offset, std::ios_base::seekdir way) override
+		seek(std::streamoff offset, std::ios_base::seekdir way = std::ios::cur) override
 		{
 			_reader.seekg(offset, way);
 			return *this;
