@@ -611,6 +611,7 @@ namespace BinaryReader
 			return data;
 		}
 
+		virtual
 		std::string
 		readAsciiString(size_t len)
 		{

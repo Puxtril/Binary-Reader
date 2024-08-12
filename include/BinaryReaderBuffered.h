@@ -88,6 +88,13 @@ namespace BinaryReader
 		{
 		}
 
+		std::string
+        readAsciiString(size_t len) override
+        {
+            char *data = reinterpret_cast<char *>(m_data.data() + tell());
+            m_curPos += len;
+            return {data, len};
+        }
 
 		size_t
 		getLength() override
