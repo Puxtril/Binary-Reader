@@ -4,6 +4,7 @@
 
 #include <fstream>
 #include <cstdint>
+#include <stdexcept>
 #include <string>
 #include <cstring>
 #include <memory>
@@ -20,20 +21,21 @@ namespace BinaryReader
 	class BinaryReader
 	{
 	private:
-		virtual void read1Byte(uint8_t* dst) = 0;
-		virtual void read2Bytes(uint8_t* dst) = 0;
-		virtual void read2BytesBE(uint8_t* dst) = 0;
-		virtual void read4Bytes(uint8_t* dst) = 0;
-		virtual void read4BytesBE(uint8_t* dst) = 0;
-		virtual void read8Bytes(uint8_t* dst) = 0;
-		virtual void read8BytesBE(uint8_t* dst) = 0;
+		virtual void read1Byte(uint8_t* dst) { throw std::runtime_error("Not implemented on BinaryReader::BinaryReader!"); }
+		virtual void read2Bytes(uint8_t* dst) { throw std::runtime_error("Not implemented on BinaryReader::BinaryReader!"); }
+		virtual void read2BytesBE(uint8_t* dst) { throw std::runtime_error("Not implemented on BinaryReader::BinaryReader!"); }
+		virtual void read4Bytes(uint8_t* dst) { throw std::runtime_error("Not implemented on BinaryReader::BinaryReader!"); }
+		virtual void read4BytesBE(uint8_t* dst) { throw std::runtime_error("Not implemented on BinaryReader::BinaryReader!"); }
+		virtual void read8Bytes(uint8_t* dst) { throw std::runtime_error("Not implemented on BinaryReader::BinaryReader!"); }
+		virtual void read8BytesBE(uint8_t* dst) { throw std::runtime_error("Not implemented on BinaryReader::BinaryReader!"); }
+		virtual BinaryReader slice(size_t size) { throw std::runtime_error("Not implemented on BinaryReader::BinaryReader!"); }
 
 	public:
 		BinaryReader() = default;
 
-		virtual size_t getLength() = 0;
-		virtual BinaryReader& seek(std::streamoff offset, std::ios_base::seekdir way) = 0;
-		virtual size_t tell() = 0;
+		virtual size_t getLength() { throw std::runtime_error("Not implemented on BinaryReader::BinaryReader!"); }
+		virtual BinaryReader& seek(std::streamoff offset, std::ios_base::seekdir way) { throw std::runtime_error("Not implemented on BinaryReader::BinaryReader!"); }
+		virtual size_t tell() { throw std::runtime_error("Not implemented on BinaryReader::BinaryReader!"); }
 
 		uint8_t
 		readUInt8()

@@ -13,7 +13,7 @@ namespace BinaryReader
 	class BufferedSlice : public BinaryReader
 	{
 		size_t m_size;
-		uint8_t* m_dataPtr;
+		const uint8_t* m_dataPtr;
 		size_t m_curPos;
 
 		void
@@ -79,7 +79,7 @@ namespace BinaryReader
 		{
 		}
 
-		BufferedSlice(uint8_t* data, size_t size)
+		BufferedSlice(const uint8_t* data, size_t size)
 			: m_size(size), m_dataPtr(data), m_curPos(0)
 		{
 		}
@@ -124,8 +124,16 @@ namespace BinaryReader
 			return m_curPos;
 		}
 
+		BinaryReader
+		slice(size_t size) override
+		{
+			BufferedSlice ret(m_dataPtr + tell(), size);
+			seek(size, std::ios::cur);
+			return ret;
+		}
+
 		BufferedSlice
-		slice(size_t size)
+		getSlice(size_t size)
 		{
 			BufferedSlice ret(m_dataPtr + tell(), size);
 			seek(size, std::ios::cur);

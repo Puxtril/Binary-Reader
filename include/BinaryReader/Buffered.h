@@ -132,8 +132,16 @@ namespace BinaryReader
 			return m_curPos;
 		}
 
+		BinaryReader
+		slice(size_t size) override
+		{
+			BufferedSlice ret(m_data.data() + tell(), size);
+			seek(size, std::ios::cur);
+			return ret;
+		}
+
 		BufferedSlice
-		slice(size_t size)
+		getSlice(size_t size)
 		{
 			BufferedSlice ret(m_data.data() + tell(), size);
 			seek(size, std::ios::cur);
