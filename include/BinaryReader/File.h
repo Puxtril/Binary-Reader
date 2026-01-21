@@ -1,7 +1,7 @@
 #pragma once
 
-#include "BinaryReaderExceptions.h"
-#include "BinaryReader.h"
+#include "BinaryReader/Exceptions.h"
+#include "BinaryReader/BinaryReader.h"
 
 #include <fstream>
 #include <cstdint>
@@ -20,7 +20,7 @@
 
 namespace BinaryReader
 {
-	class BinaryReaderFile : public BinaryReader
+	class File : public BinaryReader
 	{
 		std::ifstream _reader;
 		size_t m_length;
@@ -80,13 +80,13 @@ namespace BinaryReader
 		}
 
 	public:
-		BinaryReaderFile()
+		File()
 		{
 			this->m_length = 0;
 			this->seek(0, std::ios_base::beg);
 		}
 
-		BinaryReaderFile(const std::string& filePath)
+		File(const std::string& filePath)
 		{
 			this->_reader = std::ifstream(filePath, std::ifstream::in | std::ifstream::binary);
 
@@ -98,7 +98,7 @@ namespace BinaryReader
 		}
 		
 		#ifdef USING_FILESYSTEM
-		BinaryReaderFile(const fs::path& filePath) : BinaryReaderFile(filePath.string()) {}
+		File(const fs::path& filePath) : File(filePath.string()) {}
 		#endif
 
 		size_t
@@ -107,7 +107,7 @@ namespace BinaryReader
 			return this->m_length;
 		}
 
-		BinaryReaderFile&
+		File&
 		seek(std::streamoff offset, std::ios_base::seekdir way) override
 		{
 			_reader.seekg(offset, way);

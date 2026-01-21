@@ -1,8 +1,8 @@
 #pragma once
 
-#include "BinaryReader.h"
-#include "BinaryReaderSlice.h"
-#include "BinaryReaderExceptions.h"
+#include "BinaryReader/BinaryReader.h"
+#include "BinaryReader/BufferedSlice.h"
+#include "BinaryReader/Exceptions.h"
 
 #include <fstream>
 #include <string>
@@ -11,7 +11,7 @@
 
 namespace BinaryReader
 {
-	class BinaryReaderBuffered : public BinaryReader
+	class Buffered : public BinaryReader
 	{
 		std::vector<uint8_t> m_data;
 		size_t m_curPos;
@@ -74,17 +74,17 @@ namespace BinaryReader
 		}
 
 	public:
-		BinaryReaderBuffered()
+		Buffered()
 			: m_data(), m_curPos(0)
 		{
 		}
 
-		BinaryReaderBuffered(std::vector<uint8_t>&& data)
+		Buffered(std::vector<uint8_t>&& data)
 			: m_data(data), m_curPos(0)
 		{
 		}
 		
-		~BinaryReaderBuffered()
+		~Buffered()
 		{
 		}
 
@@ -108,7 +108,7 @@ namespace BinaryReader
 			return m_data;
 		}
 
-		BinaryReaderBuffered&
+		Buffered&
 		seek(std::streamoff offset, std::ios_base::seekdir way) override
 		{
 			switch (way)
@@ -132,10 +132,10 @@ namespace BinaryReader
 			return m_curPos;
 		}
 
-		BinaryReaderSlice
+		BufferedSlice
 		slice(size_t size)
 		{
-			BinaryReaderSlice ret(m_data.data() + tell(), size);
+			BufferedSlice ret(m_data.data() + tell(), size);
 			seek(size, std::ios::cur);
 			return ret;
 		}
